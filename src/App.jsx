@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import "./App.css";
 import * as XLSX from "xlsx";
 
 import { HotTable, HotColumn } from "@handsontable/react-wrapper";
 import { registerAllModules } from "handsontable/registry";
 import "handsontable/styles/handsontable.min.css";
 import "handsontable/styles/ht-theme-main.min.css";
+import "./App.css";
+import { customBorders } from "./helpers/customBorders";
 
 registerAllModules();
 
@@ -24,11 +25,12 @@ function App() {
 				const workbook = XLSX.read(data, { type: "array" });
 				const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
-				const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-				setData(json);
-				console.log(json);
+				const rowsJSON = XLSX.utils.sheet_to_json(worksheet, {
+					header: 1,
+				});
+				setData(rowsJSON);
 
-				const width = json.reduce(
+				const width = rowsJSON.reduce(
 					(max, arr) => Math.max(max, arr.length),
 					0
 				);
@@ -36,15 +38,21 @@ function App() {
 
 				const merges = worksheet["!merges"] || [];
 				const mergesConverted = merges
-					.map(({ s, e }) => ({
-						row: s.r,
-						col: s.c,
-						rowspan: e.r - s.r + 1,
-						colspan: e.c - s.c + 1,
-					}))
-					.slice(61, 62);
+					.map(({ s, e }) => {
+						const rowspan = e.r - s.r + 1;
+						const colspan = Math.min(e.c, width - 1) - s.c + 1;
+
+						if (rowspan === 1 && colspan === 1) return null;
+
+						return {
+							row: s.r,
+							col: s.c,
+							rowspan,
+							colspan,
+						};
+					})
+					.filter((item) => item !== null);
 				setMergeCells(mergesConverted);
-				console.log(mergesConverted);
 			})
 			.then(() => {
 				setLoading(false);
@@ -57,7 +65,7 @@ function App() {
 	const arr = new Array(width).fill(null);
 
 	return (
-		<div className="ht-theme-main-dark-auto">
+		<div className="ht-theme-main">
 			{!loading && (
 				<HotTable
 					data={data}
@@ -66,9 +74,10 @@ function App() {
 					rowHeaders={true}
 					licenseKey="non-commercial-and-evaluation"
 					mergeCells={mergeCells}
+					customBorders={customBorders}
 				>
 					{arr.map((_, i) => (
-						<HotColumn key={i} />
+						<HotColumn key={i} width={20} />
 					))}
 				</HotTable>
 			)}
