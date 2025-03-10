@@ -1,58 +1,35 @@
 import { useEffect, useState } from "react";
-import * as XLSX from "xlsx";
 
 import { HotTable, HotColumn } from "@handsontable/react-wrapper";
 import { registerAllModules } from "handsontable/registry";
 import "handsontable/styles/handsontable.min.css";
 import "handsontable/styles/ht-theme-main.min.css";
 import "./App.css";
-import { customBorders } from "./helpers/customBorders";
+import {
+	customBorders,
+	fields,
+	openXLSX,
+	openJSON,
+	generateInitialFieldState,
+} from "./helpers";
 
 registerAllModules();
 
 function App() {
-	const [data, setData] = useState({});
+	const [data, setData] = useState(null);
 	const [width, setWidth] = useState(0);
 	const [mergeCells, setMergeCells] = useState([]);
 	const [loading, setLoading] = useState(true);
 
+	const [fieldsState, setFieldsState] = useState(null);
+
 	useEffect(() => {
-		fetch("/upd-2024.xlsx")
-			.then((res) => {
-				return res.arrayBuffer();
-			})
-			.then((data) => {
-				const workbook = XLSX.read(data, { type: "array" });
-				const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-
-				const rowsJSON = XLSX.utils.sheet_to_json(worksheet, {
-					header: 1,
-				});
-				setData(rowsJSON);
-
-				const width = rowsJSON.reduce(
-					(max, arr) => Math.max(max, arr.length),
-					0
-				);
+		//openXLSX("/sample-of-fill-upd-2024.xlsx")
+		openJSON("/data.json")
+			.then(({ rows, merges, width }) => {
+				setData(rows.slice(0, 16));
 				setWidth(width);
-
-				const merges = worksheet["!merges"] || [];
-				const mergesConverted = merges
-					.map(({ s, e }) => {
-						const rowspan = e.r - s.r + 1;
-						const colspan = Math.min(e.c, width - 1) - s.c + 1;
-
-						if (rowspan === 1 && colspan === 1) return null;
-
-						return {
-							row: s.r,
-							col: s.c,
-							rowspan,
-							colspan,
-						};
-					})
-					.filter((item) => item !== null);
-				setMergeCells(mergesConverted);
+				setMergeCells(merges);
 			})
 			.then(() => {
 				setLoading(false);
@@ -62,24 +39,79 @@ function App() {
 			});
 	}, []);
 
+	useEffect(() => {
+		if (data === null) return;
+		setFieldsState(generateInitialFieldState(data));
+	}, [data]);
+
 	const arr = new Array(width).fill(null);
+
+	const handleChange = (changes, source) => {
+		if (source == "loadData" || source == "MergeCells") return;
+
+		if (source == "edit") {
+			const [row, col, prevValue, newValue] = changes[0];
+
+			if (fieldsState[row] && fieldsState[row][col]) {
+				setFieldsState((prevState) => ({
+					...prevState,
+					[row]: {
+						[col]: {
+							name: prevState[row][col].name,
+							value: newValue,
+						},
+					},
+				}));
+
+				console.log(fieldsState[row][col]);
+			}
+		}
+	};
+
+	const saveXML = () => {
+		let xmlContent = "";
+
+		Object.values(fieldsState).forEach((row) => {
+			Object.values(row).forEach((col) => {
+				xmlContent += `<${col.name}>${
+					col.value === null ? "" : col.value
+				}</${col.name}>\n`;
+			});
+		});
+
+		const blob = new Blob([xmlContent], { type: "application/xml" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "document.xml";
+		a.click();
+		URL.revokeObjectURL(url);
+	};
 
 	return (
 		<div className="ht-theme-main">
 			{!loading && (
-				<HotTable
-					data={data}
-					headerClassName="htLeft"
-					colHeaders={true}
-					rowHeaders={true}
-					licenseKey="non-commercial-and-evaluation"
-					mergeCells={mergeCells}
-					customBorders={customBorders}
-				>
-					{arr.map((_, i) => (
-						<HotColumn key={i} width={20} />
-					))}
-				</HotTable>
+				<>
+					<HotTable
+						data={data}
+						headerClassName="htLeft"
+						colHeaders={true}
+						rowHeaders={true}
+						licenseKey="non-commercial-and-evaluation"
+						renderAllRows={false}
+						mergeCells={mergeCells}
+						customBorders={customBorders}
+						afterChange={handleChange}
+					>
+						{arr.map((_, i) => (
+							<HotColumn key={i} width={20} />
+						))}
+					</HotTable>
+
+					<button className="export-btn" onClick={saveXML}>
+						Export XML
+					</button>
+				</>
 			)}
 		</div>
 	);

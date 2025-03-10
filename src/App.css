@@ -1,8 +1,16 @@
 #root {
 	margin: 0 auto;
 }
-
+/*
 .ht-theme-main {
 	--ht-cell-horizontal-border-color: #ffffff;
 	--ht-cell-vertical-border-color: #ffffff;
+}
+*/
+.handsontable td {
+	border: none;
+}
+
+.export-btn {
+	margin-top: 20px;
 }
