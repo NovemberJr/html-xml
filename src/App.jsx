@@ -79,6 +79,11 @@ function App() {
 			});
 		});
 
+		xmlContent =
+			'<?xml version="1.0" encoding="UTF-8"?><root>' +
+			xmlContent +
+			"</root>";
+
 		const blob = new Blob([xmlContent], { type: "application/xml" });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
